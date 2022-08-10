@@ -21,6 +21,7 @@ type PluginConfig struct {
 	S3DownloadConcurrency int  `json:"s3DownloadConcurrency" jsonschema:"description=Controls the number of background goroutines used to download S3 files (Default: 1)"`
 	SQSDelete             bool `json:"sqsDelete" jsonschema:"description=If true then the plugin will delete sqs messages from the queue immediately after receiving them (Default: true)"`
 	UseAsync              bool `json:"useAsync" jsonschema:"description=If true then async extraction optimization is enabled (Default: true)"`
+	UseS3SNS              bool `json:"useS3SNS" jsonschema:"description=If true then the plugin will expect SNS messages to originate from S3 instead of directly from Cloudtrail (Default: false)"`
 }
 
 // Reset sets the configuration to its default values
@@ -28,4 +29,5 @@ func (p *PluginConfig) Reset() {
 	p.SQSDelete = true
 	p.S3DownloadConcurrency = 1
 	p.UseAsync = true
+	p.UseS3SNS = false
 }
