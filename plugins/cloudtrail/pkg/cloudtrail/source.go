@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
@@ -71,44 +72,6 @@ type s3State struct {
 type snsMessage struct {
 	Bucket string   `json:"s3Bucket"`
 	Keys   []string `json:"s3ObjectKey"`
-}
-
-type snsS3Message struct {
-	Records []struct {
-		eventVersion string    `json:"eventVersion"`
-		eventSource  string    `json:"eventSource"`
-		awsRegion    string    `json:"awsRegion"`
-		eventTime    time.Time `json:"eventTime"`
-		eventName    string    `json:"eventName"`
-		userIdentity struct {
-			principalId string `json:"principalId"`
-		} `json:"userIdentity"`
-		requestParameters struct {
-			sourceIPAddress string `json:"sourceIPAddress"`
-		} `json:"requestParameters"`
-		responseElements struct {
-			requestId string `json:"x-amz-request-id"`
-			amzId     string `json:"x-amz-id-2"`
-		} `json:"responseElements"`
-		s3 struct {
-			s3SchemaVersion string `json:"s3SchemaVersion"`
-			configurationId string `json:"configurationId"`
-			bucket          struct {
-				name          string `json:"s3SchemaVersion"`
-				ownerIdentity struct {
-					principalId string `json:"principalId"`
-				} `json:"ownerIdentity"`
-				arn string `json:"arn"`
-			} `json:"bucket"`
-			object struct {
-				key       string `json:"key"`
-				size      string `json:"size"`
-				eTag      string `json:"eTag"`
-				versionId string `json:"versionId"`
-				sequencer string `json:"sequencer"`
-			} `json:"object"`
-		} `json:"s3"`
-	} `json:"Records"`
 }
 
 // This is the open state, identifying an open instance reading cloudtrail files from
@@ -289,33 +252,33 @@ func getMoreSQSFiles(pCtx *Plugin, oCtx *PluginInstance) error {
 	if pCtx.Config.UseS3SNS {
 		// Process SNS message coming from S3
 		var (
-			s3notification snsS3Message
-			s3Init         bool
-			lastBucket     string
+			s3Event    events.S3Event
+			s3Init     bool
+			lastBucket string
 		)
 
-		err = json.Unmarshal([]byte(sqsMsg["Message"].(string)), &s3notification)
+		err = json.Unmarshal([]byte(sqsMsg["Message"].(string)), &s3Event)
 
 		if err != nil {
 			return err
 		}
 
-		for _, record := range s3notification.Records {
+		for _, record := range s3Event.Records {
 
 			// init s3 and only re-init if bucket changes
-			if !s3Init || record.s3.bucket.name != lastBucket {
-				oCtx.s3.bucket = record.s3.bucket.name
+			if !s3Init || record.S3.Bucket.Name != lastBucket {
+				oCtx.s3.bucket = record.S3.Bucket.Name
 
 				initS3(oCtx)
 
 				s3Init = true
 			}
 
-			isCompressed := strings.HasSuffix(record.s3.object.key, ".json.gz")
+			isCompressed := strings.HasSuffix(record.S3.Object.Key, ".json.gz")
 
-			oCtx.files = append(oCtx.files, fileInfo{name: record.s3.object.key, isCompressed: isCompressed})
+			oCtx.files = append(oCtx.files, fileInfo{name: record.S3.Object.Key, isCompressed: isCompressed})
 
-			lastBucket = record.s3.bucket.name
+			lastBucket = record.S3.Bucket.Name
 		}
 
 		return nil
